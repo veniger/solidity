@@ -8,24 +8,28 @@ on:
 env:
   GH_TOKEN: ${{ secrets.PROJECT_BOARD_AUTOMATION }}
   ORGANIZATION: ethereum
+  # Solidity Bug Triaging Board Number
   PROJECT_NUMBER: 27
+  # See: https://github.com/orgs/ethereum/projects/27/settings/fields/Status
+  COLUMN_FIELD_NAME: "Status"
+  TRIAGE_COLUMN_NAME: "To Triage"
   DRY_RUN: true
 
 jobs:
   triage_issues:
     runs-on: ubuntu-latest
     steps:
-      - name: Retrieve the content of all columns on the board
+      - name: Retrieve the content of selected field on the project board
         run: |
           gh api graphql \
-            --raw-field organization=$ORGANIZATION \
-            --field project_number=$PROJECT_NUMBER \
+            --raw-field organization="$ORGANIZATION" \
+            --field project_number="$PROJECT_NUMBER" \
             --raw-field query='
               query($organization: String!, $project_number: Int!) {
-                organization(login: $organization){
+                organization(login: $organization) {
                   projectV2(number: $project_number) {
                     id
-                    fields(first:20) {
+                    fields(first: 20) {
                       nodes {
                         ... on ProjectV2Field {
                           id
@@ -43,40 +47,43 @@ jobs:
                     }
                   }
                 }
-              }' > project_columns.json
+              }' > single_select_fields.json
           echo 'PROJECT_ID='$(
             jq \
               '.data.organization.projectV2.id' \
-              project_columns.json
+              single_select_fields.json
           ) >> $GITHUB_ENV
-          echo 'STATUS_FIELD_ID='$(
+          echo 'COLUMN_FIELD_ID='$(
             jq \
+              --arg column_field_name "$COLUMN_FIELD_NAME" \
               '.data.organization.projectV2.fields.nodes[]
-              | select(.name== "Status")
+              | select(.name == $column_field_name)
               | .id' \
-              project_columns.json
+              single_select_fields.json
           ) >> $GITHUB_ENV
           echo 'TRIAGE_COLUMN_ID='$(
             jq --raw-output \
+              --arg column_field_name "$COLUMN_FIELD_NAME" \
+              --arg triage_column_name "$TRIAGE_COLUMN_NAME" \
               '.data.organization.projectV2.fields.nodes[]
-              | select(.name== "Status")
+              | select(.name == $column_field_name)
               | .options[]
-              | select(.name=="To Triage")
+              | select(.name == $triage_column_name)
               | .id' \
-              project_columns.json
+              single_select_fields.json
           ) >> $GITHUB_ENV
 
       - name: Add issue#${{ github.event.issue.number }} to project
         env:
           ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
-          echo "Adding issue: ${{ github.event.issue.number }} to project $PROJECT_NUMBER"
+          echo "Adding issue: ${{ github.event.issue.number }} to project ${{ env.PROJECT_NUMBER }}"
           if [[ $DRY_RUN == 'false' ]]; then
-            item_id="$(
+            echo 'ITEM_ID='$(
               gh api graphql \
                 --jq '.data.addProjectV2ItemById.item.id' \
-                --raw-field project_id=$PROJECT_ID \
-                --raw-field issue_id=$ISSUE_ID \
+                --raw-field project_id="$PROJECT_ID" \
+                --raw-field issue_id="$ISSUE_ID" \
                 --raw-field query='
                 mutation($project_id: ID!, $issue_id: ID!) {
                   addProjectV2ItemById(input: {projectId: $project_id, contentId: $issue_id}) {
@@ -85,33 +92,32 @@ jobs:
                     }
                   }
                 }'
-            )"
-            echo "ITEM_ID=$item_id" >> $GITHUB_ENV
+            ) >> $GITHUB_ENV
           fi
 
       - name: Move issue#${{ github.event.issue.number }} to Triage column
         run: |
-          echo "Moving issue: ${{ github.event.issue.number }} to Triage column in project $PROJECT_NUMBER"
+          echo "Moving issue: ${{ github.event.issue.number }} to Triage column in project ${{ env.PROJECT_NUMBER }}"
           if [[ $DRY_RUN == 'false' ]]; then
             gh api graphql \
               --silent \
-              --raw-field project_id=$PROJECT_ID \
-              --raw-field item_id=$ITEM_ID \
-              --raw-field status_field=$STATUS_FIELD_ID \
-              --raw-field status_value=$TRIAGE_COLUMN_ID \
+              --raw-field project_id="$PROJECT_ID" \
+              --raw-field item_id="$ITEM_ID" \
+              --raw-field column_field_id="$COLUMN_FIELD_ID" \
+              --raw-field column_value_id="$TRIAGE_COLUMN_ID" \
               --raw-field query='
                 mutation (
                   $project_id: ID!
                   $item_id: ID!
-                  $status_field: ID!
-                  $status_value: String!
+                  $column_field_id: ID!
+                  $column_value_id: String!
                 ) {
-                  set_status: updateProjectV2ItemFieldValue(input: {
+                  updateProjectV2ItemFieldValue(input: {
                     projectId: $project_id
                     itemId: $item_id
-                    fieldId: $status_field
+                    fieldId: $column_field_id
                     value: {
-                      singleSelectOptionId: $status_value
+                      singleSelectOptionId: $column_value_id
                     }
                   }) {
                     projectV2Item {
