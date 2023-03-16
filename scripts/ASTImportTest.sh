@@ -38,10 +38,15 @@
 
 set -euo pipefail
 
-READLINK=readlink
+READLINK="readlink"
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    READLINK=greadlink
+    READLINK="greadlink"
 fi
+EXPR="expr"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    EXPR="gexpr"
+fi
+
 REPO_ROOT=$(${READLINK} -f "$(dirname "$0")"/..)
 SOLIDITY_BUILD_DIR=${SOLIDITY_BUILD_DIR:-${REPO_ROOT}/build}
 SOLC="${SOLIDITY_BUILD_DIR}/solc/solc"
@@ -60,6 +65,7 @@ function print_used_commands
     local test_directory="$1"
     local export_command="$2"
     local import_command="$3"
+    echo
     printError "You can find the files used for this test here: ${test_directory}"
     printError "Used commands for test:"
     printError "# export"
@@ -146,116 +152,269 @@ function test_ast_import_export_equivalence
     TESTED=$((TESTED + 1))
 }
 
+function split_combined_json
+{
+    local json_file="$1"
+    local output_path="$2"
+    local prefix="${3:-}"
+    for path_with_contract in $(jq '.contracts | keys | .[]' "$json_file" 2> /dev/null)
+    do
+        local path=${path_with_contract}
+        local contract=""
+        local delimiter
+        delimiter=$("$EXPR" index "${path}" ":") || true
+        # shellcheck disable=SC2181
+        if [[ -z "$prefix" ]]
+        then
+            path=${path_with_contract:0:(($delimiter - 1))}
+            contract=${path_with_contract:(($delimiter)):((${#path_with_contract} - $delimiter - 1))}
+        else
+            path=${path_with_contract}
+            contract=""
+        fi
+        for type in $(jq --raw-output ".contracts.${path_with_contract} | keys | .[]" "$json_file" 2> /dev/null)
+        do
+            local output
+            output=$(jq --raw-output ".contracts.${path_with_contract}.\"${type}\"" "$json_file")
+            if [ -n "$output" ]
+            then
+              echo "$output" > "$output_path/$prefix$contract.$type"
+            fi
+        done
+    done
+    rm "$json_file"
+}
+
+function run_solc
+{
+    local parameters=( "${@}" )
+#    echo "parameters='${parameters[*]}'"
+    if ! "${SOLC}" "${parameters[@]}" > /dev/null 2> solc_stderr
+    then
+        printError "ERROR: ${parameters[*]}"
+        printError "$(pwd)"
+        printError "$(cat "solc_stderr")"
+        exit 1
+    fi
+    rm -f solc_stderr
+
+    return 0
+}
+
+function run_solc_store_stdout
+{
+    local output_file=$1
+    local parameters=( "${@:2}" )
+#    echo "output_file='$output_file'"
+#    echo "executable_and_parameters='${parameters[*]}'"
+    if ! "${SOLC}" "${parameters[@]}" > "${output_file}" 2> "${output_file}.error"
+    then
+        printError "ERROR: ${parameters[*]}"
+        printError "$(pwd)"
+        printError "$(cat "${output_file}.error")"
+        exit 1
+    fi
+    rm -f "${output_file}.error"
+
+    return 0
+}
+
+function test_evmjson_via_ir_and_yul_import_export
+{
+    local sol_file="$1"
+    local input_files=( "${@:2}" )
+
+    mkdir yul
+    # export found solidity contracts to yul.
+    run_solc --optimize --via-ir --ir-optimized "${input_files[@]}" -o yul/
+    for filename in yul/*
+    do
+        if [ -s "$filename" ]
+        then
+          # remove '_opt' part of '<contract-name>_opt.yul'
+          mv "$filename" "${filename/_opt/}"
+        else
+          # if file was empty, delete it.
+          rm -f "$filename"
+        fi
+    done
+
+    local export_command
+    local import_command
+
+    mkdir sol
+    # create from a combined json from the supplied solidity contracts.
+    export_command=("$SOLC" --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --optimize --via-ir --pretty-json --json-indent 4 "${input_files[@]}" -o sol/)
+    run_solc --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --optimize --via-ir --pretty-json --json-indent 4 "${input_files[@]}" -o sol/
+    mkdir input
+    # save the original supplied solidity contract sources for potential debugging purposes.
+    for file in "${input_files[@]}"
+    do
+        cat "$file" >> "input/$(basename "$file")"
+    done
+    # split the combined json into different files.
+    split_combined_json sol/combined.json sol/
+
+    # iterate through all yul files.
+    for yulfile in yul/*
+    do
+        # take the yul file and export it as evm assembly json. save the result in "$yulfile.asm.json".
+        run_solc_store_stdout "$yulfile.asm.json" --strict-assembly "$yulfile" --optimize --asm-json --pretty-json --json-indent 4
+        # remove the lines containing '=======', so that we just have a nice json file.
+        grep -v '^=======' "$yulfile.asm.json" > tmpfile && mv tmpfile "$yulfile.asm.json"
+        # import_command will just contain the last file in yul/*.asm - but it's still a good starting point ;)
+        import_command=("$SOLC" --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --pretty-json --json-indent 4 --import-asm-json "$yulfile.asm.json")
+        # import the created evm assembly json file and create a combined json out of it.
+        run_solc_store_stdout "$yulfile.combined.json" --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --pretty-json --json-indent 4 --import-asm-json "$yulfile.asm.json"
+        # split the combined json into different files.
+        split_combined_json "$yulfile.combined.json" . "$yulfile"
+    done
+
+    # now iterate over all files in the sol/ output folder.
+    # the files stored here will normally look like e.g. "sol/C.asm", "sol/C.bin"
+    # they were generated by the split_combined_json call above and contain the contract
+    # name and the type (e.g. bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime) in the
+    # file-name.
+    for file in sol/*
+    do
+        local type
+        local delimiter
+        local yul
+
+        # first just remove all path parts from the file and put it in the type.
+        # - "sol/C.asm" -> "C.asm"
+        type="$(basename "$file")"
+
+        # delimiter is just the position of that dot that is delimiting the contract
+        # name from it's type.
+        delimiter=$("$EXPR" index "${type}" ".")
+
+        # extract the type: for e.g. "C.asm" -> type will be "asm".
+        type=${type:(($delimiter)):((${#type} - $delimiter))}
+
+        # now we want to know which is the corresponding yul file, that should have exactly
+        # the same content. e.g. file="sol/C.srcmap-runtime" -> yul="yul/C.yul.srcmap-runtime"
+        yul=${file/sol/yul}
+        yul=${yul/${type}/yul.${type}}
+
+        # remember that we first exported the yul file from solidity contract files.
+        # then we generated and split the corresponding combined-json of that exported yul file.
+        # we also generated and split another combined-json file from the original
+        # solidity contract files. if the yul export to asm evm json and it's re-import
+        # will lead to the same content of the combined-json of the original solidity file,
+        # the yul export to asm evm json and it's reimport seem to work correctly.
+
+        # we can ignore "asm" and "json" files here. "asm" is the exported evm asm json.
+        # between the yul and the sol assembly jsons we may have some subtile differences,
+        # e.g. in the source-lists.
+        # however, if the yul/sol outputs of e.g. bin,bin-runtime,opcodes,srcmap,srcmap-runtime
+        # is matching, we consider that the reimport was done correctly.
+        if [ "$type" == "asm" ] || [ "$type" == "json" ]
+        then
+            continue
+        fi
+
+        # compare the files. e.g. "sol/C.srcmap-runtime" with "yul/C.yul.srcmap-runtime"
+        if ! diff_files "${file}" "${yul}" > diff_error
+        then
+            local diff_error
+            diff_error=$(cat diff_error)
+            printError "ERROR: diff failed ${file} ${yul}:\n   ${diff_error}"
+            if (( EXIT_ON_ERROR == 1 ))
+            then
+                print_used_commands "$(pwd)" "${export_command[*]}" "${import_command[*]}"
+                exit 1
+            fi
+            return 1
+        fi
+    done
+
+    rm -rf sol
+    rm -rf yul
+    rm -rf input
+
+    return 0
+}
+
+function test_evmjson_sol_import_export
+{
+    local sol_file="$1"
+    local input_files=( "${@:2}" )
+
+    mkdir -p sol
+    # create from a combined json from the supplied solidity contracts.
+    local export_command
+    local import_command
+    export_command=("$SOLC" --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --pretty-json --json-indent 4 "${input_files[@]}" -o sol/)
+
+    run_solc --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --pretty-json --json-indent 4 "${input_files[@]}" -o sol/
+    mkdir input
+    # save the original supplied solidity contract sources for potential debugging purposes.
+    for file in "${input_files[@]}"
+    do
+        cat "$file" >> "input/$(basename "$file")"
+    done
+    # split the combined json into different files.
+    split_combined_json sol/combined.json sol/
+
+    mkdir -p imported-from-sol
+    for file in sol/*.asm
+    do
+        name=$(basename "${file}" .asm)
+        # import_command will just contain the last file in sol/*.asm - but it's still a good starting point ;)
+        import_command=("$SOLC" --import-ast --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --pretty-json --json-indent 4 --import-asm-json "$file")
+        run_solc_store_stdout "imported-from-sol/combined.json" --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --pretty-json --json-indent 4 --import-asm-json "$file"
+        split_combined_json imported-from-sol/combined.json imported-from-sol/ "$name"
+    done
+
+    for file in sol/*
+    do
+        local imported
+        imported=${file/sol/imported-from-sol}
+        if ! diff_files "${file}" "${imported}" > diff_error
+        then
+            local diff_error
+            diff_error=$(cat diff_error)
+            printError "ERROR: diff failed ${file} ${imported}:\n   ${diff_error}"
+            if (( EXIT_ON_ERROR == 1 ))
+            then
+                print_used_commands "$(pwd)" "${export_command[*]}" "${import_command[*]}"
+                exit 1
+            fi
+            return 1
+        fi
+    done
+
+    rm -rf sol
+    rm -rf imported-from-sol
+    rm -rf input
+
+    return 0
+}
+
 function test_evmjson_import_export_equivalence
 {
     local sol_file="$1"
     local input_files=( "${@:2}" )
-    local outputs=( "asm" "bin" "bin-runtime" "opcodes" "srcmap" "srcmap-runtime" )
-    local export_command=("$SOLC" --combined-json "$(IFS=, ; echo "${outputs[*]}")" --pretty-json --json-indent 4 "${input_files[@]}")
     local success=1
-    if ! "${export_command[@]}" > expected.json 2> expected.error
+
+    # export sol to yul. generate artefacts from sol and convert yul to asm json.
+    # import the yul asm json and check whether the sol artefacts are the same as for yul.
+    if ! test_evmjson_via_ir_and_yul_import_export "$sol_file" "${input_files[@]}"
     then
         success=0
-        printError "ERROR: (export) EVM Assembly JSON reimport failed for ${sol_file}"
-        if (( EXIT_ON_ERROR == 1 ))
-        then
-            print_used_commands "$(pwd)" "${export_command[*]}" ""
-            return 1
-        fi
     fi
-    if ! "${export_command[@]}" "--optimize" > expected.optimize.json 2> expected.optimize.error
+
+    # only run the next test-step, if the previous test was run correctly.
+    if (( success == 1 ))
     then
-        success=0
-        printError "ERROR: (export with --optimize) EVM Assembly JSON reimport failed for ${sol_file}"
-        if (( EXIT_ON_ERROR == 1 ))
+        # generate artefacts from sol. export sol to asm json. import that asm json and
+        # check whether the sol artefacts are the same as created by the asm json import.
+        if ! test_evmjson_sol_import_export "$sol_file" "${input_files[@]}"
         then
-            print_used_commands "$(pwd)" "${export_command[*]} --optimize" ""
-            return 1
+            success=0
         fi
     fi
-
-    for input_json in "expected.json" "expected.optimize.json"
-    do
-        local optimize_param=""
-        if [[ "$input_json" == "expected.optimize.json" ]]
-        then
-            optimize_param="--optimize"
-        fi
-
-        # Note that we have some test files, that only consist of free functions.
-        # Those files don't define any contracts, so the resulting JSON does not have any
-        # keys. In this case `jq` returns an error like `jq: error: null (null) has no keys`.
-        # To not get spammed by these errors, errors are redirected to /dev/null.
-        for contract in $(jq '.contracts | keys | .[]' "$input_json" 2> /dev/null)
-        do
-            for output in "${outputs[@]}"
-            do
-                jq --raw-output ".contracts.${contract}.\"${output}\"" "$input_json" > "expected.${output}.json"
-            done
-
-            assembly=$(cat expected.asm.json)
-            [[ $assembly != "" && $assembly != "null" ]] || continue
-
-            local import_command=("${SOLC}" --combined-json "bin,bin-runtime,opcodes,asm,srcmap,srcmap-runtime" --pretty-json --json-indent 4 --import-asm-json expected.asm.json)
-            if ! "${import_command[@]}" > obtained.json 2> obtained.error
-            then
-                success=0
-                printError "ERROR: (import) EVM Assembly JSON reimport failed for ${sol_file}"
-                if (( EXIT_ON_ERROR == 1 ))
-                then
-                    print_used_commands "$(pwd)" "${export_command[*]} ${optimize_param}" "${import_command[*]}"
-                    return 1
-                fi
-            fi
-
-            for output in "${outputs[@]}"
-            do
-                for obtained_contract in $(jq '.contracts | keys | .[]' obtained.json  2> /dev/null)
-                do
-                    jq --raw-output ".contracts.${obtained_contract}.\"${output}\"" obtained.json > "obtained.${output}.json"
-                    # compare expected and obtained evm assembly json
-                    if ! diff_files "expected.${output}.json" "obtained.${output}.json"
-                    then
-                        success=0
-                        printError "ERROR: (${output}) EVM Assembly JSON reimport failed for ${sol_file}"
-                        if (( EXIT_ON_ERROR == 1 ))
-                        then
-                            print_used_commands "$(pwd)" "${export_command[*]} ${optimize_param}" "${import_command[*]}"
-                            return 1
-                        fi
-                    fi
-                done
-            done
-
-            # direct export via --asm-json, if imported with --import-asm-json.
-            if ! "${SOLC}" --asm-json --import-asm-json expected.asm.json --pretty-json --json-indent 4 | tail -n+2 > obtained_direct_import_export.json 2> obtained_direct_import_export.error
-            then
-                success=0
-                printError "ERROR: (direct) EVM Assembly JSON reimport failed for ${sol_file}"
-                if (( EXIT_ON_ERROR == 1 ))
-                then
-                    print_used_commands "$(pwd)" "${SOLC} --asm-json --import-asm-json expected.asm.json --pretty-json --json-indent 4 | tail -n+4" ""
-                    return 1
-                fi
-            fi
-
-            # reformat json files using jq.
-            jq . expected.asm.json > expected.asm.json.pretty
-            jq . obtained_direct_import_export.json > obtained_direct_import_export.json.pretty
-
-            # compare expected and obtained evm assembly.
-            if ! diff_files expected.asm.json.pretty obtained_direct_import_export.json.pretty
-            then
-                success=0
-                printError "ERROR: EVM Assembly JSON reimport failed for ${sol_file}"
-                if (( EXIT_ON_ERROR == 1 ))
-                then
-                    print_used_commands "$(pwd)" "${export_command[*]} ${optimize_param}" "${import_command[*]}"
-                    return 1
-                fi
-            fi
-        done
-    done
 
     if (( success == 1 ))
     then
@@ -327,6 +486,8 @@ WORKINGDIR=$PWD
 
 command_available "$SOLC" --version
 command_available jq --version
+command_available "$EXPR" --version
+command_available "$READLINK" --version
 
 case "$IMPORT_TEST_TYPE" in
     ast) TEST_DIRS=("${SYNTAXTESTS_DIR}" "${ASTJSONTESTS_DIR}") ;;
