@@ -97,19 +97,19 @@ def parse_commandline() -> Namespace:
 
     parser = ArgumentParser(description=script_description)
     subparser = parser.add_subparsers()
-    list_cmd = subparser.add_parser(
+    list_command = subparser.add_parser(
         "list",
         help="List all available external tests.",
     )
-    list_cmd.set_defaults(cmd=display_available_external_tests)
+    list_command.set_defaults(cmd=display_available_external_tests)
 
-    run_cmd = subparser.add_parser(
+    run_command = subparser.add_parser(
         "run",
         help="Run external tests.",
     )
-    run_cmd.set_defaults(cmd=run_external_tests)
+    run_command.set_defaults(cmd=run_external_tests)
 
-    run_cmd.add_argument(
+    run_command.add_argument(
         "--solc-binary-type",
         dest="solc_binary_type",
         type=str,
@@ -117,7 +117,7 @@ def parse_commandline() -> Namespace:
         choices=["native", "solcjs"],
         help="Type of the solidity compiler binary to be used.",
     )
-    run_cmd.add_argument(
+    run_command.add_argument(
         "--solc-binary-path",
         dest="solc_binary_path",
         type=Path,
@@ -125,7 +125,7 @@ def parse_commandline() -> Namespace:
         help="Path to the solidity compiler binary.",
     )
 
-    running_mode = run_cmd.add_mutually_exclusive_group()
+    running_mode = run_command.add_mutually_exclusive_group()
     running_mode.add_argument(
         "--run",
         metavar="TEST_NAME",
