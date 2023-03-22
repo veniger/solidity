@@ -53,7 +53,7 @@ def external_tests_scripts() -> dict:
 
 
 def display_available_external_tests(_) -> int:
-    print("Avaialable external tests:")
+    print("Available external tests:")
     print(*external_tests_scripts().keys())
     return 0
 
