@@ -1324,7 +1324,7 @@ jobs:
             - run:
                 name: External << parameters.project >> tests (native)
                 command: |
-                    test/externalTests/<< parameters.project >>.sh native /tmp/workspace/solc/solc
+                    test/externalTests/<< parameters.project >>.sh native /tmp/workspace/solc/solc-static-linux
       - store_artifacts:
           path: reports/externalTests/
       # persist_to_workspace fails if the directory does not exist and the test script will create
