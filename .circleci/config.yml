@@ -617,8 +617,7 @@ defaults:
       name: t_native_test_ext_prb_math
       project: prb-math
       binary_type: native
-      build_dependency: rust
-      script_lang: python3
+      image: cimg/rust:1.66.1
   - job_native_test_ext_elementfi: &job_native_test_ext_elementfi
       <<: *workflow_ubuntu2004_static
       name: t_native_test_ext_elementfi
@@ -1243,22 +1242,13 @@ jobs:
         default: 0
       nodejs_version:
         type: string
-        default: current
-      rust_version:
-        type: string
-        default: "1.65.0"
+        default: cimg/node:current
       resource_class:
         type: string
         default: small
       python2:
         type: boolean
         default: false
-      script_lang:
-        type: string
-        default: shellscript
-      build_dependency:
-        type: string
-        default: nodejs
     docker:
       - image: cimg/node:<<parameters.nodejs_version>>
     resource_class: <<parameters.resource_class>>
@@ -1291,54 +1281,20 @@ jobs:
                   sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1
       - when:
           condition:
-            equal: [<< parameters.build_dependency >>, "rust"]
-          steps:
-            - run:
-                name: Install Rust
-                command: |
-                  echo 'export PATH=/home/circleci/.cargo/bin:"$PATH"' >> "$BASH_ENV"
-                  source "$BASH_ENV"
-                  curl -O https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init && \
-                    chmod +x rustup-init && \
-                    ./rustup-init -y --no-modify-path --default-toolchain "<< parameters.rust_version >>" --profile minimal && \
-                    rm rustup-init && \
-                    rustc --version && \
-                    cargo --version
-      - when:
-          condition:
             equal: [<< parameters.binary_type >>, "solcjs"]
           steps:
             - run:
                 name: External <<parameters.project>> tests (solcjs)
                 command: |
-                  test/externalTests/<<parameters.project>>.sh solcjs /tmp/workspace/soljson.js
+                  test/externalTests/<<parameters.project>>.py solcjs /tmp/workspace/soljson.js
       - when:
           condition:
-            and:
-                - equal: [<< parameters.binary_type >>, "native"]
-                - equal: [<< parameters.script_lang >>, "shellscript"]
+            equal: [<< parameters.binary_type >>, "native"]
           steps:
-            - run:
-                name: External <<parameters.project>> tests (native)
-                command: |
-                  test/externalTests/<<parameters.project>>.sh native /tmp/workspace/solc/solc-static-linux
-      - when:
-          condition:
-            and:
-                - equal: [<< parameters.binary_type >>, "native"]
-                - equal: [<< parameters.script_lang >>, "python3"]
-          steps:
-            - run:
-                name: Install script dependencies
-                command: |
-                    sudo apt update
-                    sudo apt install python3-pip --assume-yes --no-install-recommends
-                    python3 -m pip install requests --user
             - run:
                 name: External <<parameters.project>> tests (native)
                 command: |
                     test/externalTests/<<parameters.project>>.py --solc-binary-type native --solc-binary-path /tmp/workspace/solc/solc-static-linux
-                no_output_timeout: 30m
       - store_artifacts:
           path: reports/externalTests/
       # persist_to_workspace fails if the directory does not exist and the test script will create
