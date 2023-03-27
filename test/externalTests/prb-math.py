@@ -22,7 +22,6 @@
 import sys
 import subprocess
 import json
-from shutil import copyfile
 
 from exttest_setup import CURRENT_EVM_VERSION
 from exttest_setup import parse_command_line, run_test
@@ -66,8 +65,7 @@ if __name__ == '__main__':
             "PRBMath",
             FoundryRunner(
                 config=config,
-                setup_fn=lambda test_dir, env:
-                    copyfile(test_dir / ".env.example", test_dir / ".env"),
+                setup_fn=None,
                 compile_fn=None,
                 test_fn=None,
             ),
