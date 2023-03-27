@@ -119,6 +119,39 @@ commands:
             - bytecode-report-<< parameters.label >>-cli.txt
       - matrix_notify_failure_unless_pr
 
+  install_python3:
+    description: "Install python3 and given packages."
+    parameters:
+      packages:
+        description: "List of optional python packages to be installed (separated by space)."
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: Install python and dependencies
+          command: |
+            sudo apt update
+            if ! python3 --version >/dev/null 2>&1
+            then
+              sudo apt install python3 --assume-yes --no-install-recommends
+            fi
+            sudo apt install python3-pip
+            if [ -n "<< parameters.packages >>" ]
+            then
+              echo "Installing additional packages..."
+              python3 -m pip install --user << parameters.packages >>
+            fi
+
+  install_foundry:
+    description: "Install Foundry."
+    steps:
+      - run:
+          name: Install foundry
+          command: |
+            # Note: Currently Foundry only has nightly builds and there is no release checksum
+            wget https://github.com/foundry-rs/foundry/releases/download/nightly/foundry_nightly_linux_amd64.tar.gz --output-document /tmp/foundry.tar.gz
+            sudo tar --extract --gzip --file /tmp/foundry.tar.gz --directory /usr/local/bin
+
 defaults:
 
   # --------------------------------------------------------------------------
@@ -283,24 +316,6 @@ defaults:
         - run:
             name: Install build dependencies
             command: ./.circleci/osx_install_dependencies.sh
-
-  - steps_install_python_dependencies: &steps_install_python_dependencies
-      steps:
-        - run:
-            name: Install python dependencies
-            command: |
-                sudo apt update
-                sudo apt install python3-pip --assume-yes --no-install-recommends
-                python3 -m pip install requests --user
-
-  - steps_install_foundry: &steps_install_foundry
-      steps:
-        - run:
-            name: Install foundry
-            command: |
-                # Note: Currently Foundry only has nightly builds and there is no release checksum
-                wget https://github.com/foundry-rs/foundry/releases/download/nightly/foundry_nightly_linux_amd64.tar.gz --output-document /tmp/foundry.tar.gz
-                sudo tar --extract --gzip --file /tmp/foundry.tar.gz --directory /usr/local/bin
 
   # --------------------------------------------------------------------------
   # Base Image Templates
@@ -735,14 +750,8 @@ jobs:
     <<: *base_cimg_small
     steps:
       - checkout
-      - run:
-          name: Install pip
-          command: |
-            sudo apt -q update
-            sudo apt install -y python3-pip
-      - run:
-          name: Install pylint and dependencies of the scripts that will be linted
-          command: python3 -m pip install
+      - install_python3:
+          packages: >
             pylint
             z3-solver
             pygments-lexer-solidity
@@ -790,12 +799,8 @@ jobs:
     <<: *base_cimg_small
     steps:
       - checkout
-      - run:
-          name: Z3 python deps
-          command: |
-            sudo apt-get -qq update
-            sudo apt-get -qy install python3-pip
-            pip3 install --user z3-solver
+      - install_python3:
+          packages: z3-solver
       - run: *run_proofs
       - matrix_notify_failure_unless_pr
 
@@ -1271,21 +1276,15 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/workspace
+      - install_foundry
+      - install_python3:
+          packages: requests
       - run:
           name: Install lsof
           command: |
             # lsof is used by Colony in its stop-blockchain-client.sh script
             sudo apt update
             sudo apt-get --quiet --assume-yes --no-install-recommends install lsof
-      - when:
-          condition: true
-          <<: *steps_install_python_dependencies
-      - when:
-          condition:
-            matches:
-                pattern: /^.+rust.+$/
-                value: << parameters.image >>
-          <<: *steps_install_foundry
       - when:
           condition: << parameters.python2 >>
           steps:
@@ -1339,8 +1338,9 @@ jobs:
 
   c_ext_benchmarks:
     <<: *base_node_small
-    <<: *steps_install_python_dependencies
     steps:
+      - install_python3:
+          packages: requests
       - checkout
       - attach_workspace:
           at: .
