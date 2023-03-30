@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with solidity.  If not, see <http://www.gnu.org/licenses/>
 #
-# (c) 2016 solidity contributors.
+# (c) 2023 solidity contributors.
 # ------------------------------------------------------------------------------
 
 from argparse import ArgumentParser, Namespace
