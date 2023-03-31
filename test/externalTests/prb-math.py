@@ -29,13 +29,14 @@ from exttest_setup import TestConfig
 
 from foundry import FoundryRunner
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         # Note: We currently accept solc_binary_type and solc_binary_path as parameters
         # to keep compatibility with the current external tests framework.
         args = parse_command_line("PRBMath external tests", sys.argv[1:])
 
-        config_json = json.loads(f"""
+        config_json = json.loads(
+            f"""
         {{
             "repo_url": "https://github.com/PaulRBerg/prb-math.git",
             "ref_type": "branch",
@@ -57,7 +58,8 @@ if __name__ == '__main__':
                 "branch": "master",
                 "install_dir": "solc/"
             }}
-        }}""")
+        }}"""
+        )
 
         config = TestConfig(**config_json)
         run_test(
@@ -70,6 +72,11 @@ if __name__ == '__main__':
                 test_fn=None,
             ),
         )
-    except (OSError, SystemError, RuntimeError, subprocess.CalledProcessError) as exception:
+    except (
+        OSError,
+        SystemError,
+        RuntimeError,
+        subprocess.CalledProcessError,
+    ) as exception:
         print(f"Error while processing test: {exception}", file=sys.stderr)
         sys.exit(1)

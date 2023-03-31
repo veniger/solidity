@@ -39,10 +39,12 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from common.shell_command import run_cmd
 
+
 class FoundryRunner(TestRunner):
     """Configure and run Foundry-based projects"""
 
-    profile_tmpl = Template("""
+    profile_tmpl = Template(
+        """
         [profile.${name}]
         gas_reports = [\"*\"]
         auto_detect_solc = false
@@ -53,12 +55,15 @@ class FoundryRunner(TestRunner):
 
         [profile.${name}.optimizer_details]
         yul = ${yul}
-    """)
+    """
+    )
 
     foundryup_url = "https://raw.githubusercontent.com/foundry-rs/foundry/master/foundryup/foundryup"
     foundry_repo = "https://github.com/foundry-rs/foundry.git"
 
-    def __init__(self, config: TestConfig, setup_fn=None, compile_fn=None, test_fn=None):
+    def __init__(
+        self, config: TestConfig, setup_fn=None, compile_fn=None, test_fn=None
+    ):
         self.config = config
         self.setup_fn = setup_fn
         self.compile_fn = compile_fn
@@ -83,7 +88,7 @@ class FoundryRunner(TestRunner):
     def profile_name(preset: str):
         """Returns foundry profile name"""
         # Replace - or + by underscore to avoid invalid toml syntax
-        return re.sub(r'(\-|\+)+', '_', preset)
+        return re.sub(r"(\-|\+)+", "_", preset)
 
     @TestRunner.on_local_test_dir
     def clean(self):
@@ -91,40 +96,51 @@ class FoundryRunner(TestRunner):
         run_cmd("forge clean")
 
     @TestRunner.on_local_test_dir
-    def compiler_settings(self, solc_version: str, presets: Tuple[str] = AVAILABLE_PRESETS):
+    def compiler_settings(
+        self, solc_version: str, presets: Tuple[str] = AVAILABLE_PRESETS
+    ):
         """Configure forge tests profiles"""
 
         foundry_config_file = self.config.config_file
         binary_type = self.config.solc.binary_type
         binary_path = self.config.solc.binary_path
-        print(dedent(f"""
+        print(
+            dedent(
+                f"""
             Configuring Forge profiles...
             -------------------------------------
             Config file: {foundry_config_file}
             Binary type: {binary_type}
             Compiler path: {binary_path}
             -------------------------------------
-        """))
+        """
+            )
+        )
         # FIXME: Add support to solcjs. Currently only native solc is supported.
         if binary_type == "solcjs":
             raise RuntimeError(
-                "Solcjs binaries are currently not supported with Foundry. Please use `native` binary_type.")
+                "Solcjs binaries are currently not supported with Foundry. Please use `native` binary_type."
+            )
 
         profiles = []
         for preset in presets:
             # TODO: parse presets and extract settings
             name = self.profile_name(preset)
             settings = settings_from_preset(preset, self.config.evm_version)
-            profiles.append(self.profile_tmpl.substitute(
-                name=name,
-                solc=binary_path,
-                evm_version=self.config.evm_version,
-                optimizer=settings["optimizer"]["enabled"],
-                via_ir=settings["viaIR"],
-                yul=settings["optimizer"]["details"]["yul"]
-            ))
+            profiles.append(
+                self.profile_tmpl.substitute(
+                    name=name,
+                    solc=binary_path,
+                    evm_version=self.config.evm_version,
+                    optimizer=settings["optimizer"]["enabled"],
+                    via_ir=settings["viaIR"],
+                    yul=settings["optimizer"]["details"]["yul"],
+                )
+            )
 
-        with open(file=Path(self.test_dir) / foundry_config_file, mode="a", encoding="utf-8") as f:
+        with open(
+            file=Path(self.test_dir) / foundry_config_file, mode="a", encoding="utf-8"
+        ) as f:
             for profile in profiles:
                 f.write(profile)
 
@@ -136,7 +152,9 @@ class FoundryRunner(TestRunner):
 
         solc_short_version = get_solc_short_version(solc_version)
         settings = settings_from_preset(preset, self.config.evm_version)
-        print(dedent(f"""
+        print(
+            dedent(
+                f"""
             Using Forge profile...
             -------------------------------------
             Settings preset: {preset}
@@ -145,7 +163,9 @@ class FoundryRunner(TestRunner):
             Compiler version: {solc_short_version}
             Compiler version (full): {solc_version}
             -------------------------------------
-        """))
+        """
+            )
+        )
         name = self.profile_name(preset)
         # Set the profile environment variable
         self.env.update({"FOUNDRY_PROFILE": name})
