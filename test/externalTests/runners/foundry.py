@@ -28,13 +28,13 @@ from string import Template
 from typing import Tuple
 from textwrap import dedent
 
-from exttest_setup import AVAILABLE_PRESETS
-from exttest_setup import settings_from_preset, get_solc_short_version
-from exttest_setup import TestConfig, TestRunner
+from exttest.common import AVAILABLE_PRESETS
+from exttest.common import settings_from_preset, get_solc_short_version
+from exttest.common import TestConfig, TestRunner
 
 # Our scripts/ is not a proper Python package so we need to modify PYTHONPATH to import from it
 # pragma pylint: disable=import-error,wrong-import-position
-SCRIPTS_DIR = Path(__file__).parents[2] / "scripts"
+SCRIPTS_DIR = Path(__file__).parents[3] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from common.shell_command import run_cmd

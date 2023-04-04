@@ -23,11 +23,11 @@ import sys
 import subprocess
 import json
 
-from exttest_setup import CURRENT_EVM_VERSION
-from exttest_setup import parse_command_line, run_test
-from exttest_setup import TestConfig
+from exttest.common import CURRENT_EVM_VERSION
+from exttest.common import parse_command_line, run_test
+from exttest.common import TestConfig
 
-from foundry import FoundryRunner
+from runners.foundry import FoundryRunner
 
 if __name__ == "__main__":
     try:

@@ -37,7 +37,7 @@ from abc import ABCMeta, abstractmethod
 
 # Our scripts/ is not a proper Python package so we need to modify PYTHONPATH to import from it
 # pragma pylint: disable=import-error,wrong-import-position
-SCRIPTS_DIR = Path(__file__).parents[2] / "scripts"
+SCRIPTS_DIR = Path(__file__).parents[3] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from common.git_helpers import git, git_commit_hash
