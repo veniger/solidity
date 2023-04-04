@@ -33,28 +33,30 @@ if __name__ == "__main__":
     try:
         args = parse_command_line("PRBMath external tests", sys.argv[1:])
 
-        runner_config = TestConfig(**{
-            "repo_url": "https://github.com/PaulRBerg/prb-math.git",
-            "ref_type": "branch",
-            "ref": "main",
-            "config_file": "foundry.toml",
-            "config_var": "config",
-            "build_dependency": "rust",
-            "compile_only_presets": [],
-            "settings_presets": [
-                "ir-optimize-evm+yul",
-                "legacy-optimize-evm-only",
-                "legacy-optimize-evm+yul",
-                "legacy-no-optimize"
-            ],
-            "evm_version": f"{CURRENT_EVM_VERSION}",
-            "solc": {
-                "binary_type": f"{args.solc_binary_type}",
-                "binary_path": f"{args.solc_binary_path}",
-                "branch": "master",
-                "install_dir": "solc/"
+        runner_config = TestConfig(
+            **{
+                "repo_url": "https://github.com/PaulRBerg/prb-math.git",
+                "ref_type": "branch",
+                "ref": "main",
+                "config_file": "foundry.toml",
+                "config_var": "config",
+                "build_dependency": "rust",
+                "compile_only_presets": [],
+                "settings_presets": [
+                    "ir-optimize-evm+yul",
+                    "legacy-optimize-evm-only",
+                    "legacy-optimize-evm+yul",
+                    "legacy-no-optimize",
+                ],
+                "evm_version": f"{CURRENT_EVM_VERSION}",
+                "solc": {
+                    "binary_type": f"{args.solc_binary_type}",
+                    "binary_path": f"{args.solc_binary_path}",
+                    "branch": "master",
+                    "install_dir": "solc/",
+                },
             }
-        })
+        )
 
         run_test(
             "PRBMath",
@@ -65,8 +67,6 @@ if __name__ == "__main__":
                 test_fn=None,
             ),
         )
-    except (
-        InvalidConfigError
-    ) as exception:
+    except InvalidConfigError as exception:
         print(f"Error while processing test: {exception}", file=sys.stderr)
         sys.exit(1)

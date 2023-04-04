@@ -87,11 +87,14 @@ class TestConfig:
     def selected_presets(self):
         return self.compile_only_presets + self.settings_presets
 
+
 class InvalidConfigError(Exception):
     pass
 
+
 class WrongBinaryType(Exception):
     pass
+
 
 class TestRunner(metaclass=ABCMeta):
     @staticmethod
@@ -213,7 +216,9 @@ def parse_solc_version(solc_version_string):
     if solc_version_match:
         solc_full_version = solc_version_match.group(1)
     else:
-        raise RuntimeError(f"Solc version could not be found in: {solc_version_string}.")
+        raise RuntimeError(
+            f"Solc version could not be found in: {solc_version_string}."
+        )
     return solc_full_version
 
 
@@ -253,8 +258,10 @@ def setup_solc(config: TestConfig, test_dir: Path) -> (str, str):
         run_cmd("npm install")
         run_cmd("npm run build")
 
-        if mimetypes.guess_type(sc_config.binary_path)[0] != 'application/javascript':
-            raise WrongBinaryType(f"Provided soljson.js is expected to be of the type application/javascript but it is not.")
+        if mimetypes.guess_type(sc_config.binary_path)[0] != "application/javascript":
+            raise WrongBinaryType(
+                f"Provided soljson.js is expected to be of the type application/javascript but it is not."
+            )
 
         copyfile(sc_config.binary_path, solc_dir / "dist/soljson.js")
         solc_version_output = subprocess.getoutput(f"node {solc_bin} --version")
