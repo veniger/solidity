@@ -47,7 +47,7 @@ def external_tests_scripts() -> dict:
         file_path = Path(EXTERNAL_TESTS_DIR) / f
         if file_path.is_file():
             file_name, extension = file_path.name.split(".")
-            if (extension == "sh" or extension == "py") and not file_name == "common":
+            if extension in ('sh', 'py') and not file_name == "common":
                 test_scripts[file_name] = file_path
     return test_scripts
 
