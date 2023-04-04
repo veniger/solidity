@@ -276,38 +276,38 @@ def prepare_node_env(test_dir: Path):
     # TODO: replace prepublish and prepare
 
 
-def run_test(config, name: str, runner: TestRunner):
-    if config.solc.binary_type not in ("native", "solcjs"):
+def run_test(name: str, runner: TestRunner):
+    if runner.config.solc.binary_type not in ("native", "solcjs"):
         raise RuntimeError(
-            f"Invalid solidity compiler binary type: {config.solc.binary_type}"
+            f"Invalid solidity compiler binary type: {runner.config.solc.binary_type}"
         )
-    if config.solc.binary_type != "solcjs" and config.solc.solcjs_src_dir != "":
+    if runner.config.solc.binary_type != "solcjs" and runner.config.solc.solcjs_src_dir != "":
         raise RuntimeError(
             f"""Invalid test configuration: 'native' mode cannot be used with 'solcjs_src_dir'.
-            Please use 'binary_type: solcjs' or unset: 'solcjs_src_dir: {config.solc.solcjs_src_dir}'"""
+            Please use 'binary_type: solcjs' or unset: 'solcjs_src_dir: {runner.config.solc.solcjs_src_dir}'"""
         )
     print(f"Testing {name}...\n===========================")
     with TemporaryDirectory(prefix=f"ext-test-{name}-") as tmp_dir:
         test_dir = Path(tmp_dir) / "ext"
-        presets = config.selected_presets()
+        presets = runner.config.selected_presets()
         print(f"Selected settings presets: {' '.join(map(str, presets))}")
 
         # Configure solc compiler
-        solc_version = setup_solc(config, test_dir)
+        solc_version = setup_solc(runner.config, test_dir)
         print(f"Using compiler version {solc_version}")
 
         # Download project
-        download_project(test_dir, config.repo_url, config.ref_type, config.ref)
+        download_project(test_dir, runner.config.repo_url, runner.config.ref_type, runner.config.ref)
 
         # Configure run environment
-        if config.build_dependency == "nodejs":
+        if runner.config.build_dependency == "nodejs":
             prepare_node_env(test_dir)
         runner.setup_environment(test_dir)
 
         # Configure TestRunner instance
         # TODO: replace_version_pragmas
         runner.compiler_settings(solc_version, presets)
-        for preset in config.selected_presets():
+        for preset in runner.config.selected_presets():
             print("Running compile function...")
             runner.compile(solc_version, preset)
             # TODO: skip tests if compile_only_presets
