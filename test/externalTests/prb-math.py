@@ -23,7 +23,7 @@ import sys
 import subprocess
 import json
 
-from exttest.common import CURRENT_EVM_VERSION
+from exttest.common import CURRENT_EVM_VERSION, InvalidConfigError
 from exttest.common import parse_command_line, run_test
 from exttest.common import TestConfig
 
@@ -66,10 +66,7 @@ if __name__ == "__main__":
             ),
         )
     except (
-        OSError,
-        SystemError,
-        RuntimeError,
-        subprocess.CalledProcessError,
+        InvalidConfigError
     ) as exception:
         print(f"Error while processing test: {exception}", file=sys.stderr)
         sys.exit(1)
