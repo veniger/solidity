@@ -144,12 +144,27 @@ commands:
 
   install_foundry:
     description: "Install Foundry."
+    parameters:
+      version:
+        type: string
+        default: "nightly"
     steps:
       - run:
           name: Install foundry
           command: |
-            # Note: Currently Foundry only has nightly builds and there is no release checksum
-            wget https://github.com/foundry-rs/foundry/releases/download/nightly/foundry_nightly_linux_amd64.tar.gz --output-document /tmp/foundry.tar.gz
+            FOUNDRY_REPO="foundry-rs/foundry"
+            FOUNDRY_VERSION=<< parameters.version >>
+            FOUNDRY_RELEASE_SHA=$(curl \
+              --silent \
+              --fail \
+              --show-error \
+              "https://api.github.com/repos/${FOUNDRY_REPO}/git/refs/tags/${FOUNDRY_VERSION}" \
+              | jq --raw-output .object.sha \
+            )
+            FOUNDRY_RELEASE_TAG="nightly-${FOUNDRY_RELEASE_SHA}"
+            wget \
+              --output-document /tmp/foundry.tar.gz \
+              "https://github.com/${FOUNDRY_REPO}/releases/download/${FOUNDRY_RELEASE_TAG}/foundry_${FOUNDRY_VERSION}_linux_amd64.tar.gz"
             sudo tar --extract --gzip --file /tmp/foundry.tar.gz --directory /usr/local/bin
 
 defaults:
