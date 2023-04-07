@@ -150,7 +150,7 @@ commands:
         default: "nightly"
     steps:
       - run:
-          name: Install foundry
+          name: Setup Foundry environment variables
           command: |
             FOUNDRY_REPO="foundry-rs/foundry"
             FOUNDRY_VERSION=<< parameters.version >>
@@ -161,11 +161,29 @@ commands:
               "https://api.github.com/repos/${FOUNDRY_REPO}/git/refs/tags/${FOUNDRY_VERSION}" \
               | jq --raw-output .object.sha \
             )
-            FOUNDRY_RELEASE_TAG="nightly-${FOUNDRY_RELEASE_SHA}"
-            wget \
-              --output-document /tmp/foundry.tar.gz \
-              "https://github.com/${FOUNDRY_REPO}/releases/download/${FOUNDRY_RELEASE_TAG}/foundry_${FOUNDRY_VERSION}_linux_amd64.tar.gz"
-            sudo tar --extract --gzip --file /tmp/foundry.tar.gz --directory /usr/local/bin
+            echo "export FOUNDRY_REPO=$FOUNDRY_REPO" >> "$BASH_ENV"
+            echo "export FOUNDRY_VERSION=$FOUNDRY_VERSION" >> "$BASH_ENV"
+            echo "export FOUNDRY_RELEASE_TAG='nightly-${FOUNDRY_RELEASE_SHA}'" >> "$BASH_ENV"
+            # Save commit sha for caching
+            echo $FOUNDRY_RELEASE_SHA > /tmp/workspace/foundry-release-sha
+      - restore_cache:
+          keys:
+            - foundry-<< parameters.version >>-{{ checksum "/tmp/workspace/foundry-release-sha" }}
+      - run:
+          name: Install foundry
+          command: |
+            if ! command -v forge > /dev/null 2>&1; then
+              wget \
+                --output-document /tmp/foundry.tar.gz \
+                "https://github.com/${FOUNDRY_REPO}/releases/download/${FOUNDRY_RELEASE_TAG}/foundry_${FOUNDRY_VERSION}_linux_amd64.tar.gz"
+              sudo tar --extract --gzip --file /tmp/foundry.tar.gz --directory /usr/local/bin
+            else
+              echo "Foundry/forge already installed. Skipping installation..."
+            fi
+      - save_cache:
+          key: foundry-<< parameters.version >>-{{ checksum "/tmp/workspace/foundry-release-sha" }}
+          paths:
+            - /usr/local/bin/forge
 
 defaults:
 
