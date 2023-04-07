@@ -9,3 +9,5 @@ contract C {
     address c = 0x1234567890123456789012345678901234567890 suffix;
     string d = "a" suffix;
 }
+// ----
+// TypeError 8792: (259-265): Overloaded functions cannot be used as literal suffixes.

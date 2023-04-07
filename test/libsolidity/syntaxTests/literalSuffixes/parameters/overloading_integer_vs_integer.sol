@@ -17,3 +17,5 @@ contract C {
     int40 e = 255 iuSuffix;
     int40 f = -255 iuSuffix;
 }
+// ----
+// TypeError 8792: (365-372): Overloaded functions cannot be used as literal suffixes.

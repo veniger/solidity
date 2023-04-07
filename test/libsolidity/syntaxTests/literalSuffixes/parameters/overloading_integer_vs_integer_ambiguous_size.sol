@@ -5,4 +5,4 @@ contract C {
     int a = 127 uSuffix;
 }
 // ----
-// TypeError 4487: (137-144): No unique declaration found after argument-dependent lookup.
+// TypeError 8792: (137-144): Overloaded functions cannot be used as literal suffixes.

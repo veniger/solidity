@@ -5,4 +5,4 @@ contract C {
     function suffix(address) public pure returns (uint) {}
 }
 // ----
-// TypeError 9322: (31-37): No matching declaration found after argument-dependent lookup.
+// TypeError 8792: (31-37): Overloaded functions cannot be used as literal suffixes.

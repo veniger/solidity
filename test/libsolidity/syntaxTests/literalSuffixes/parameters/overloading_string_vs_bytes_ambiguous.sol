@@ -5,4 +5,4 @@ contract C {
     uint a = "abcd" suffix;
 }
 // ----
-// TypeError 4487: (155-161): No unique declaration found after argument-dependent lookup.
+// TypeError 8792: (155-161): Overloaded functions cannot be used as literal suffixes.

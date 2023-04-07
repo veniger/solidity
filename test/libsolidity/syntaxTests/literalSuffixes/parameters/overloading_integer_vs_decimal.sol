@@ -8,3 +8,5 @@ contract C {
     int a = 1.1 suffix256;
     uint8 b = 1024 suffix8;
 }
+// ----
+// TypeError 8792: (260-269): Overloaded functions cannot be used as literal suffixes.

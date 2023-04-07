@@ -13,3 +13,5 @@ contract C {
     address c = 0x1234567890123456789012345678901234567890 A.suffix;
     string d = "a" A.suffix;
 }
+// ----
+// TypeError 6327: (B.sol:49-57): Overloaded functions cannot be used as literal suffixes.

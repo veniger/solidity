@@ -4,4 +4,4 @@ contract C {
     }
 }
 // ----
-// TypeError 9322: (54-60): No matching declaration found after argument-dependent lookup.
+// TypeError 8792: (54-60): Overloaded functions cannot be used as literal suffixes.

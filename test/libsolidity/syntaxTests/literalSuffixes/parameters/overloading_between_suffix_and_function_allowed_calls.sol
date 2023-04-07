@@ -17,3 +17,5 @@ contract C {
         f("a");
     }
 }
+// ----
+// TypeError 8792: (268-269): Overloaded functions cannot be used as literal suffixes.

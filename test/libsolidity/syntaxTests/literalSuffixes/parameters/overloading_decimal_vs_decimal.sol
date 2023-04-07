@@ -17,3 +17,5 @@ contract C {
     int40 e = 2.55 iuSuffix;
     int40 f = -2.55 iuSuffix;
 }
+// ----
+// TypeError 8792: (402-409): Overloaded functions cannot be used as literal suffixes.

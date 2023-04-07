@@ -4,3 +4,5 @@ function suffix(bytes memory) pure suffix returns (bytes memory) {}
 contract C {
     bytes a = hex"abcd" suffix;
 }
+// ----
+// TypeError 8792: (176-182): Overloaded functions cannot be used as literal suffixes.

@@ -11,4 +11,4 @@ contract C {
     }
 }
 // ----
-// TypeError 9582: (218-226): Member "suffix" not found or not visible after argument-dependent lookup in uint8.
+// TypeError 6327: (218-226): Overloaded functions cannot be used as literal suffixes.

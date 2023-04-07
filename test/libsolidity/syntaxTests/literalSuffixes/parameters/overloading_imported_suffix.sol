@@ -29,3 +29,5 @@ contract D {
         "a" f;
     }
 }
+// ----
+// TypeError 8792: (B.sol:201-202): Overloaded functions cannot be used as literal suffixes.

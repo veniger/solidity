@@ -7,4 +7,4 @@ contract C {
     }
 }
 // ----
-// TypeError 4487: (171-177): No unique declaration found after argument-dependent lookup.
+// TypeError 8792: (171-177): Overloaded functions cannot be used as literal suffixes.
