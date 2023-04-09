@@ -331,6 +331,8 @@ BOOST_AUTO_TEST_CASE(immutable)
 	checkCompilation(_assembly);
 
 	string genericPush0 = evmVersion < EVMVersion::shanghai() ? "6000" : "5f";
+	// PUSH1 0x1b v/s PUSH1 0x19
+	string dataOffset = evmVersion < EVMVersion::shanghai() ? "601b" : "6019";
 
 	BOOST_CHECK_EQUAL(
 		_assembly.assemble().toHex(),
@@ -351,8 +353,8 @@ BOOST_AUTO_TEST_CASE(immutable)
 		"6022" // PUSH1 34 - offset of someOtherImmutable in sub_0
 		"01" // ADD - add offset of immutable to offset of code
 		"52" // MSTORE
-		"6063" // PUSH1 0x63 - dataSize(sub_0)
-		"601b" // PUSH1 0x23 - dataOffset(sub_0)
+		"6063" + // PUSH1 0x63 - dataSize(sub_0)
+		dataOffset +  // PUSH1 0x23 - dataOffset(sub_0)
 		"fe" // INVALID
 		// end of root.asm
 		// sub.asm
