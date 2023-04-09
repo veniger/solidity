@@ -330,12 +330,14 @@ BOOST_AUTO_TEST_CASE(immutable)
 
 	checkCompilation(_assembly);
 
+	string genericPush0 = evmVersion < EVMVersion::shanghai() ? "6000" : "5f";
+
 	BOOST_CHECK_EQUAL(
 		_assembly.assemble().toHex(),
 		// root.asm
 		// assign "someImmutable"
-		"602a" // PUSH1 42 - value for someImmutable
-		"6000" // PUSH1 0 - offset of code into which to insert the immutable
+		"602a" + // PUSH1 42 - value for someImmutable
+		genericPush0 + // PUSH1 0 - offset of code into which to insert the immutable
 		"8181" // DUP2 DUP2
 		"6001" // PUSH1 1 - offset of first someImmutable in sub_0
 		"01" // ADD - add offset of immutable to offset of code
@@ -344,8 +346,8 @@ BOOST_AUTO_TEST_CASE(immutable)
 		"01" // ADD - add offset of immutable to offset of code
 		"52" // MSTORE
 		// assign "someOtherImmutable"
-		"6017" // PUSH1 23 - value for someOtherImmutable
-		"6000" // PUSH1 0 - offset of code into which to insert the immutable
+		"6017" + // PUSH1 23 - value for someOtherImmutable
+		genericPush0 + // PUSH1 0 - offset of code into which to insert the immutable
 		"6022" // PUSH1 34 - offset of someOtherImmutable in sub_0
 		"01" // ADD - add offset of immutable to offset of code
 		"52" // MSTORE
