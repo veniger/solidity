@@ -7,6 +7,7 @@ Language Features:
 
 Compiler Features:
  * EVM: Support for the EVM Version "Cancun".
+ * NatSpec: Added NatSpec documentation support for UDVTs.
 
 Bugfixes:
  * AST import: Fix bug when importing inline assembly with empty ``let`` variable declaration.
